@@ -2,12 +2,12 @@
  * Loon TestFlight Auto Join
  *
  * Inputs from plugin:
- * - TF_CODES: comma/newline separated invite codes or full join links.
+ * - App_ID: comma/newline separated invite codes or full join links.
  * - MAX_PER_RUN: optional, default 8, max 20.
  * - REMOVE_404: 1 removes invalid/expired codes, 0 keeps them.
  *
  * Legacy compatibility:
- * - Existing APP_ID values from older Auto_join_TF scripts are imported.
+ * - Existing App_ID/APP_ID and fmz200_TF_header values from Kelee/fmz200 scripts are imported.
  */
 
 const PREFIX = "tfaj.";
@@ -15,8 +15,16 @@ const KEYS = {
   account: PREFIX + "account",
   codes: PREFIX + "codes",
   done: PREFIX + "done",
-  lastNoAccountNotice: PREFIX + "lastNoAccountNotice",
-  legacyCodes: "APP_ID"
+  lastNoAccountNotice: PREFIX + "lastNoAccountNotice"
+};
+const COMPAT_HEADER_KEY = "fmz200_TF_header";
+const ARGUMENTS = parseArguments(typeof $argument === "string" ? $argument : "");
+const PLACEHOLDER_VALUES = {
+  App_ID: true,
+  APP_ID: true,
+  TF_CODES: true,
+  MAX_PER_RUN: true,
+  REMOVE_404: true
 };
 
 const CAPTURE_HEADER_MAP = {
@@ -73,9 +81,17 @@ function handleCapture(request) {
         headers,
         capturedAt: new Date().toISOString()
       });
+      writeJson(COMPAT_HEADER_KEY, {
+        key: accountId,
+        session_id: headers["X-Session-Id"],
+        session_digest: headers["X-Session-Digest"],
+        request_id: headers["X-Request-Id"],
+        tf_ua: headers["User-Agent"],
+        update_time: formatLocalTime()
+      });
 
       if (changed) {
-        messages.push("account saved");
+        messages.push("令牌获取成功");
         log("captured account: " + accountId);
       } else {
         log("account session refreshed: " + accountId);
@@ -88,20 +104,21 @@ function handleCapture(request) {
   if (code) {
     const added = mergeCodes([code]);
     if (added.length) {
-      messages.push("code added: " + added.join(","));
+      syncAppIdStore();
+      messages.push("已添加APP_ID: " + added.join(","));
       log("captured invite code: " + added.join(","));
     }
   }
 
   if (messages.length) {
-    notify("TestFlight Auto Join", "capture updated", messages.join(" | "));
+    notify("TestFlight Auto Join", "", messages.join(" | "));
   }
 }
 
 async function runAutoJoin() {
   importConfiguredCodes();
 
-  const account = readJson(KEYS.account, null);
+  const account = getAccount();
   const queue = readJson(KEYS.codes, []);
   const doneSet = toSet(readJson(KEYS.done, []));
   const codes = unique(queue).filter(code => !doneSet[code]);
@@ -109,13 +126,14 @@ async function runAutoJoin() {
   writeJson(KEYS.codes, codes);
 
   if (!codes.length) {
+    notify("TestFlight Auto Join", "未添加 App_ID", "在插件参数 App_ID 填入邀请码，例如 wUz8czx3");
     log("no invite codes to check");
     return;
   }
 
   if (!account || !account.accountId || !account.headers) {
     maybeNotifyNoAccount();
-    log("missing TestFlight session. Open TestFlight once with Loon MITM enabled.");
+    log("missing TestFlight session. Enable capture and open TestFlight once to trigger v3/accounts/.../apps.");
     return;
   }
 
@@ -237,10 +255,14 @@ async function checkAndJoin(account, code, remove404) {
 
 function importConfiguredCodes() {
   const rawItems = [
+    readArgument("App_ID"),
+    readArgument("APP_ID"),
+    readArgument("TF_CODES"),
     readStore("TF_CODES"),
     readStore("tf_codes"),
     readStore("TESTFLIGHT_CODES"),
-    readStore(KEYS.legacyCodes)
+    readStore("App_ID"),
+    readStore("APP_ID")
   ];
 
   const codes = [];
@@ -279,9 +301,16 @@ function removeCode(code) {
   const codes = readJson(KEYS.codes, []).filter(item => item !== code);
   writeJson(KEYS.codes, codes);
 
-  const legacy = extractInviteCodes(readStore(KEYS.legacyCodes) || "").filter(item => item !== code);
-  if (legacy.length) {
-    writeStore(KEYS.legacyCodes, legacy.join(","));
+  ["App_ID", "APP_ID", "TF_CODES"].forEach(key => {
+    const legacy = extractInviteCodes(readStore(key) || "").filter(item => item !== code);
+    writeStore(key, legacy.join(","));
+  });
+}
+
+function syncAppIdStore() {
+  const codes = readJson(KEYS.codes, []);
+  if (codes.length) {
+    writeStore("App_ID", codes.join(","));
   }
 }
 
@@ -316,6 +345,35 @@ function captureHeaders(headers) {
   return captured;
 }
 
+function getAccount() {
+  const account = readJson(KEYS.account, null);
+  if (account && account.accountId && account.headers) {
+    return account;
+  }
+
+  const compat = readJson(COMPAT_HEADER_KEY, null);
+  if (!compat || !compat.key) {
+    return null;
+  }
+
+  const headers = {
+    "X-Session-Id": compat.session_id,
+    "X-Session-Digest": compat.session_digest,
+    "X-Request-Id": compat.request_id,
+    "User-Agent": compat.tf_ua
+  };
+
+  if (!headers["X-Session-Id"] || !headers["X-Session-Digest"]) {
+    return null;
+  }
+
+  return {
+    accountId: compat.key,
+    headers,
+    capturedAt: compat.update_time || ""
+  };
+}
+
 function extractAccountId(url) {
   const match = String(url || "").match(/^https:\/\/testflight\.apple\.com\/v3\/accounts\/([^/]+)\//);
   return match ? match[1] : "";
@@ -341,7 +399,7 @@ function extractInviteCodes(input) {
       .replace(/^.*\/ru\//, "")
       .replace(/[?#].*$/, "")
       .trim();
-    if (/^[A-Za-z0-9_-]{6,80}$/.test(cleaned)) {
+    if (/^[A-Za-z0-9_-]{6,80}$/.test(cleaned) && !PLACEHOLDER_VALUES[cleaned]) {
       codes.push(cleaned);
     }
   });
@@ -378,13 +436,13 @@ function maybeNotifyNoAccount() {
   const last = Number(readStore(KEYS.lastNoAccountNotice) || 0);
   if (!last || now - last > 6 * 60 * 60 * 1000) {
     writeStore(KEYS.lastNoAccountNotice, String(now));
-    notify("TestFlight Auto Join", "missing session", "open TestFlight once while Loon MITM is enabled");
+    notify("TestFlight Auto Join", "未捕获账号令牌", "打开插件的“捕获账号令牌”，再重启 TestFlight 进入任意页面");
   }
 }
 
 function readBool(keys, fallback) {
   for (let i = 0; i < keys.length; i++) {
-    const value = readStore(keys[i]);
+    const value = readConfig(keys[i]);
     if (value === null || value === undefined || value === "") {
       continue;
     }
@@ -395,13 +453,43 @@ function readBool(keys, fallback) {
 
 function readInt(keys, fallback, min, max) {
   for (let i = 0; i < keys.length; i++) {
-    const raw = readStore(keys[i]);
+    const raw = readConfig(keys[i]);
     const value = Number(raw);
     if (Number.isFinite(value)) {
       return Math.max(min, Math.min(max, Math.floor(value)));
     }
   }
   return fallback;
+}
+
+function readConfig(key) {
+  const fromArgument = readArgument(key);
+  if (fromArgument !== null && fromArgument !== undefined && fromArgument !== "") {
+    return fromArgument;
+  }
+  return readStore(key);
+}
+
+function readArgument(key) {
+  return Object.prototype.hasOwnProperty.call(ARGUMENTS, key) ? ARGUMENTS[key] : null;
+}
+
+function parseArguments(argument) {
+  const result = {};
+  String(argument || "").split("&").forEach(pair => {
+    if (!pair) {
+      return;
+    }
+    const index = pair.indexOf("=");
+    const rawKey = index >= 0 ? pair.slice(0, index) : pair;
+    const rawValue = index >= 0 ? pair.slice(index + 1) : "";
+    const key = decodeURIComponent(rawKey || "").trim();
+    if (!key) {
+      return;
+    }
+    result[key] = decodeURIComponent(rawValue || "").trim();
+  });
+  return result;
 }
 
 function readJson(key, fallback) {
@@ -504,4 +592,15 @@ function stringifyError(error) {
 
 function log(message) {
   console.log("[TF AutoJoin] " + message);
+}
+
+function formatLocalTime() {
+  const date = new Date();
+  const pad = value => String(value).padStart(2, "0");
+  return date.getFullYear() + "-" +
+    pad(date.getMonth() + 1) + "-" +
+    pad(date.getDate()) + " " +
+    pad(date.getHours()) + ":" +
+    pad(date.getMinutes()) + ":" +
+    pad(date.getSeconds());
 }

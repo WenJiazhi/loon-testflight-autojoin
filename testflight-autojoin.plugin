@@ -3,13 +3,22 @@
 #!author=wjz
 #!homepage=https://github.com/WenJiazhi/loon-testflight-autojoin
 #!icon=https://raw.githubusercontent.com/Orz-3/mini/master/Color/testflight.png
-#!input=TF_CODES
+#!input=App_ID
 #!input=MAX_PER_RUN
-#!select=REMOVE_404,0,1
+
+[Argument]
+CaptureAccountToken=switch, "true", "false", tag=捕获账号令牌, desc=打开 TestFlight 后捕获 v3/accounts 会话令牌
+RunTask=switch, "true", "false", tag=自动加入TF, desc=按定时任务自动检测并加入
+TaskCron=input, "0 0/2 * * * ?", tag=加入TF定时参数, desc=默认每 2 分钟运行一次
+REMOVE_404=switch, "false", "true", tag=移除404链接, desc=404 代表链接不存在或失效，打开后自动从队列删除
+
+[Rule]
+DOMAIN, testflight.apple.com, PROXY
 
 [Script]
-http-request ^https:\/\/testflight\.apple\.com\/(join\/[A-Za-z0-9_-]+|v3\/accounts\/[^\/]+\/(apps|ru\/[A-Za-z0-9_-]+)) script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=TF AutoJoin Capture,timeout=20,enable=true
-cron "*/5 * * * *" script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=TF AutoJoin Runner,timeout=120,enable=true
+http-request ^https?:\/\/testflight\.apple\.com\/v3\/accounts\/.*\/apps$ script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=获取账号令牌,timeout=20,enable={CaptureAccountToken}
+http-request ^https?:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9_-]+ script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=捕获TF链接,timeout=20,enable=true
+cron {TaskCron} script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=自动加入TF,timeout=600,enable={RunTask},argument=App_ID=App_ID&MAX_PER_RUN=MAX_PER_RUN&REMOVE_404={REMOVE_404}
 
 [MITM]
 hostname = testflight.apple.com

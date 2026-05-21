@@ -12,7 +12,7 @@
 - 会话头字段过少或过旧，容易因为 TestFlight App 请求变化失效。
 - 只用 `APP_ID` 这个逗号字符串做队列，成功、404、重复链接和插件输入不好管理。
 
-这个版本保留接口思路，但改成单脚本、Loon 插件输入、状态去重和更保守的异常处理。
+这个版本借鉴可莉/fmz200 的 Loon 插件结构，使用 `App_ID` 和 `fmz200_TF_header` 兼容已有数据，同时保留状态去重和更保守的异常处理。
 
 ## 文件
 
@@ -39,8 +39,8 @@ https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/testfl
 ```
 
 3. 确认 Loon 已安装并信任 MITM 证书，插件里的 `hostname = testflight.apple.com` 已启用。
-4. 打开 TestFlight App，刷新一次任意页面，让插件捕获账号会话。
-5. 在插件参数 `TF_CODES` 填公开邀请链接或邀请码，支持逗号、空格、换行：
+4. 保持插件参数里的 `捕获账号令牌` 为开启，重启 TestFlight App，进入任意页面，看到“令牌获取成功”后即可。
+5. 在插件参数 `App_ID` 填公开邀请链接或邀请码，支持逗号、空格、换行：
 
 ```text
 https://testflight.apple.com/join/ABCDEFGH
@@ -51,13 +51,13 @@ ABCDEFGH,IJKLMNO1
 
 ## 参数
 
-- `TF_CODES`: 邀请码或完整公开链接。
+- `App_ID`: 邀请码或完整公开链接，兼容可莉/fmz200 版本。
 - `MAX_PER_RUN`: 每次 cron 最多检查多少个，默认 `8`，最大 `20`。
 - `REMOVE_404`: `0` 保留 404 链接，`1` 自动删除 404 链接。
 
 ## 兼容旧脚本
 
-如果你之前用过旧脚本，`APP_ID` 里的邀请码会被自动导入。成功加入后，新队列会移除对应 code；如果旧 `APP_ID` 里还有其他 code，会尽量同步写回。
+如果你之前用过旧脚本，`App_ID`、`APP_ID` 或可莉版本的 `fmz200_TF_header` 会被自动导入。成功加入后，新队列会移除对应 code；如果旧 key 里还有其他 code，会尽量同步写回。
 
 ## 注意
 
