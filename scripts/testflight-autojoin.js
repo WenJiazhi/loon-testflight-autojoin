@@ -132,7 +132,7 @@ async function runAutoJoin() {
 
   writeJson(KEYS.codes, codes);
 
-  const maxPerRun = readInt(["MAX_PER_RUN", "max_per_run"], 8, 1, 20);
+  const maxPerRun = readInt(["MAX_PER_RUN", "MAX_PER_RUN_FALLBACK", "max_per_run"], 8, 1, 20);
   const remove404 = readBool(["REMOVE_404", "remove404"], false);
 
   if (!codes.length) {
@@ -390,16 +390,7 @@ function syncMonitorQueueFromConfig() {
     readArgument("APP_ID"),
     readArgument("TF_CODES")
   ];
-  const storeItems = [
-    readStore("App_ID"),
-    readStore("APP_ID"),
-    readStore("TF_CODES")
-  ];
-
-  let codes = collectCodes(argumentItems);
-  if (!codes.length) {
-    codes = collectCodes(storeItems);
-  }
+  const codes = collectCodes(argumentItems);
 
   const normalized = unique(codes);
   writeJson(KEYS.codes, normalized);
