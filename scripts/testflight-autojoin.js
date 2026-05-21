@@ -26,6 +26,7 @@ const PLACEHOLDER_VALUES = {
   APP_ID: true,
   TF_CODES: true,
   MAX_PER_RUN: true,
+  MAX_PER_RUN_FALLBACK: true,
   REMOVE_404: true
 };
 
@@ -390,11 +391,21 @@ function syncMonitorQueueFromConfig() {
     readArgument("APP_ID"),
     readArgument("TF_CODES")
   ];
-  const codes = collectCodes(argumentItems);
+  const storeItems = [
+    readStore("App_ID"),
+    readStore("APP_ID"),
+    readStore("TF_CODES")
+  ];
+  let codes = collectCodes(argumentItems);
+  let source = "argument";
+  if (!codes.length) {
+    codes = collectCodes(storeItems);
+    source = "persistentStore";
+  }
 
   const normalized = unique(codes);
   writeJson(KEYS.codes, normalized);
-  log("monitor queue set from current config: " + normalized.join(","));
+  log("monitor queue set from " + source + ": " + normalized.join(","));
 }
 
 function collectCodes(rawItems) {
@@ -528,12 +539,21 @@ function extractInviteCodes(input) {
       .replace(/^.*\/ru\//, "")
       .replace(/[?#].*$/, "")
       .trim();
-    if (/^[A-Za-z0-9_-]{6,80}$/.test(cleaned) && !PLACEHOLDER_VALUES[cleaned]) {
+    if (/^[A-Za-z0-9_-]{6,80}$/.test(cleaned) && !isPlaceholderValue(cleaned)) {
       codes.push(cleaned);
     }
   });
 
   return unique(codes);
+}
+
+function isPlaceholderValue(value) {
+  const text = String(value || "").trim();
+  return Boolean(
+    PLACEHOLDER_VALUES[text] ||
+    /^\{[^}]+\}$/.test(text) ||
+    /^\[[^\]]+\]$/.test(text)
+  );
 }
 
 function http(method, request) {

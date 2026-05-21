@@ -3,10 +3,10 @@
 #!author=wjz
 #!homepage=https://github.com/WenJiazhi/loon-testflight-autojoin
 #!icon=https://raw.githubusercontent.com/Orz-3/mini/master/Color/testflight.png
-#!input=App_ID
-#!input=MAX_PER_RUN
 
 [Argument]
+App_ID=input, "", tag=监控ID, desc=填写 TestFlight 邀请码或完整链接，多个用逗号或换行分隔
+MAX_PER_RUN=input, "8", tag=每次数量, desc=每次定时最多检查多少个，建议 1-20
 REMOVE_404=switch, "false", "true", tag=移除404链接, desc=404 代表链接不存在或失效，打开后自动从队列删除
 
 [Rule]

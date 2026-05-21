@@ -40,7 +40,7 @@ https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/testfl
 ```
 
 3. 主插件不包含 MITM，长期启用它不应影响 TestFlight 正常打开。
-4. 在主插件参数 `App_ID` 填公开邀请链接或邀请码，支持逗号、空格、换行：
+4. 在主插件参数 `监控ID / App_ID` 填公开邀请链接或邀请码，支持逗号、空格、换行：
 
 ```text
 https://testflight.apple.com/join/ABCDEFGH
@@ -71,11 +71,13 @@ https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/testfl
 
 ## 参数
 
-- `App_ID`: 邀请码或完整公开链接，兼容可莉/fmz200 版本。
+- `App_ID`: 邀请码或完整公开链接，多个用逗号、空格或换行分隔。
 - `MAX_PER_RUN`: 每次 cron 最多检查多少个，默认 `8`，最大 `20`。
 - `REMOVE_404`: `0` 保留 404 链接，`1` 自动删除 404 链接。
 
 定时任务使用固定 Loon cron：`0 */2 * * * *`，也就是每 2 分钟执行一次。更新插件后如果仍不自动运行，重启一次 Loon VPN 或重新导入插件，让 Loon 重新注册 cron。
+
+监控模式每次运行都会用当前插件参数覆盖内部队列。也就是说，你在 `App_ID` 里删掉某个 ID 后，下一次运行不会继续监控它。
 
 ## 兼容旧脚本
 
