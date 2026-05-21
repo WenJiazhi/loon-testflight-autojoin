@@ -15,10 +15,12 @@ const KEYS = {
   account: PREFIX + "account",
   codes: PREFIX + "codes",
   done: PREFIX + "done",
+  publicNotice: PREFIX + "publicNotice",
   lastNoAccountNotice: PREFIX + "lastNoAccountNotice"
 };
 const COMPAT_HEADER_KEY = "fmz200_TF_header";
 const ARGUMENTS = parseArguments(typeof $argument === "string" ? $argument : "");
+const APP_NAME = String(readConfig("MODE") || "").toLowerCase() === "monitor" ? "TestFlight Monitor" : "TestFlight Auto Join";
 const PLACEHOLDER_VALUES = {
   App_ID: true,
   APP_ID: true,
@@ -55,7 +57,7 @@ const CAPTURE_HEADER_MAP = {
     $done();
   } catch (error) {
     log("fatal: " + stringifyError(error));
-    notify("TestFlight Auto Join", "script error", stringifyError(error));
+    notify(APP_NAME, "script error", stringifyError(error));
     $done();
   }
 })();
@@ -111,14 +113,13 @@ function handleCapture(request) {
   }
 
   if (messages.length) {
-    notify("TestFlight Auto Join", "", messages.join(" | "));
+    notify(APP_NAME, "", messages.join(" | "));
   }
 }
 
 async function runAutoJoin() {
   importConfiguredCodes();
 
-  const account = getAccount();
   const queue = readJson(KEYS.codes, []);
   const doneSet = toSet(readJson(KEYS.done, []));
   const codes = unique(queue).filter(code => !doneSet[code]);
@@ -129,13 +130,19 @@ async function runAutoJoin() {
   const remove404 = readBool(["REMOVE_404", "remove404"], false);
 
   if (!codes.length) {
-    notify("TestFlight Auto Join", "未添加 App_ID", "在插件参数 App_ID 填入邀请码，例如 wUz8czx3");
+    notify(APP_NAME, "未添加 App_ID", "在插件参数 App_ID 填入邀请码，例如 wUz8czx3");
     log("no invite codes to check");
     return;
   }
 
+  if (String(readConfig("MODE") || "").toLowerCase() === "monitor") {
+    await monitorPublicLinks(codes.slice(0, maxPerRun), remove404);
+    return;
+  }
+
+  const account = getAccount();
   if (!account || !account.accountId || !account.headers) {
-    await monitorPublicLinks(codes.slice(0, maxPerRun));
+    await monitorPublicLinks(codes.slice(0, maxPerRun), remove404);
     maybeNotifyNoAccount();
     log("missing TestFlight session. Public join pages were monitored instead; auto-accept requires a captured token.");
     return;
@@ -255,12 +262,16 @@ async function checkAndJoin(account, code, remove404) {
   return {};
 }
 
-async function monitorPublicLinks(codes) {
-  log("no token available, monitoring public join page(s): " + codes.join(","));
+async function monitorPublicLinks(codes, remove404) {
+  log("monitoring public join page(s): " + codes.join(","));
   for (let i = 0; i < codes.length; i++) {
     const code = codes[i];
     const result = await checkPublicJoinPage(code);
-    if (result.available) {
+    if (result.remove && remove404) {
+      removeCode(code);
+      notify(APP_NAME, "链接无效", code + " 已从队列移除");
+    }
+    if (result.available && shouldNotifyAvailable(code)) {
       notify(
         "TestFlight available",
         result.name || code,
@@ -270,6 +281,20 @@ async function monitorPublicLinks(codes) {
     }
     await sleep(500);
   }
+}
+
+function shouldNotifyAvailable(code) {
+  const key = String(code || "");
+  const notices = readJson(KEYS.publicNotice, {});
+  const now = Date.now();
+  const last = Number(notices[key] || 0);
+  if (last && now - last < 10 * 60 * 1000) {
+    log(key + " availability notification skipped by cooldown");
+    return false;
+  }
+  notices[key] = now;
+  writeJson(KEYS.publicNotice, notices);
+  return true;
 }
 
 async function checkPublicJoinPage(code) {
@@ -291,7 +316,7 @@ async function checkPublicJoinPage(code) {
 
   if (status === 404) {
     log(code + " public page: 404");
-    return {};
+    return { remove: true };
   }
 
   if (status < 200 || status >= 300) {
@@ -513,7 +538,7 @@ function maybeNotifyNoAccount() {
   const last = Number(readStore(KEYS.lastNoAccountNotice) || 0);
   if (!last || now - last > 6 * 60 * 60 * 1000) {
     writeStore(KEYS.lastNoAccountNotice, String(now));
-    notify("TestFlight Auto Join", "无账号令牌", "已降级为公开页监控；全自动加入仍需要令牌");
+    notify(APP_NAME, "无账号令牌", "已降级为公开页监控；全自动加入仍需要令牌");
   }
 }
 

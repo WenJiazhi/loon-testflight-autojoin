@@ -1,5 +1,5 @@
-#!name=TestFlight Auto Join
-#!desc=Watch public TestFlight invite codes and join when a beta is available. No MITM in this main plugin.
+#!name=TestFlight Monitor
+#!desc=Monitor public TestFlight invite links and notify when a beta is available. No MITM.
 #!author=wjz
 #!homepage=https://github.com/WenJiazhi/loon-testflight-autojoin
 #!icon=https://raw.githubusercontent.com/Orz-3/mini/master/Color/testflight.png
@@ -7,12 +7,12 @@
 #!input=MAX_PER_RUN
 
 [Argument]
-RunTask=switch, "true", "false", tag=自动加入TF, desc=按定时任务自动检测并加入
-TaskCron=input, "0 0/2 * * * ?", tag=加入TF定时参数, desc=默认每 2 分钟运行一次
+RunTask=switch, "true", "false", tag=监控TF名额, desc=按定时任务监控公开邀请页
+TaskCron=input, "0 0/2 * * * ?", tag=监控定时参数, desc=默认每 2 分钟运行一次
 REMOVE_404=switch, "false", "true", tag=移除404链接, desc=404 代表链接不存在或失效，打开后自动从队列删除
 
 [Rule]
 DOMAIN, testflight.apple.com, DIRECT
 
 [Script]
-cron {TaskCron} script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=自动加入TF,timeout=600,enable={RunTask},argument=App_ID=App_ID&MAX_PER_RUN=MAX_PER_RUN&REMOVE_404={REMOVE_404}
+cron {TaskCron} script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=监控TF名额,timeout=600,enable={RunTask},argument=MODE=monitor&App_ID=App_ID&MAX_PER_RUN=MAX_PER_RUN&REMOVE_404={REMOVE_404}
