@@ -1,0 +1,16 @@
+#!name=TestFlight Token Capture
+#!desc=Temporary helper to capture TestFlight account token. Disable/remove it after token is captured.
+#!author=wjz
+#!homepage=https://github.com/WenJiazhi/loon-testflight-autojoin
+#!icon=https://raw.githubusercontent.com/Orz-3/mini/master/Color/testflight.png
+
+[Rule]
+DOMAIN, testflight.apple.com, DIRECT
+
+[Script]
+http-request ^https?:\/\/testflight\.apple\.com\/v3\/accounts\/.*\/apps$ script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=获取账号令牌,timeout=20,enable=true
+http-request ^https?:\/\/testflight\.apple\.com\/join\/[A-Za-z0-9_-]+ script-path=https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/scripts/testflight-autojoin.js,tag=捕获TF链接,timeout=20,enable=true
+
+[MITM]
+hostname = testflight.apple.com
+h2 = true
