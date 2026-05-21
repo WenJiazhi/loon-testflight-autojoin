@@ -118,11 +118,17 @@ function handleCapture(request) {
 }
 
 async function runAutoJoin() {
-  importConfiguredCodes();
+  const monitorMode = String(readConfig("MODE") || "").toLowerCase() === "monitor";
+
+  if (monitorMode) {
+    syncMonitorQueueFromConfig();
+  } else {
+    importConfiguredCodes();
+  }
 
   const queue = readJson(KEYS.codes, []);
   const doneSet = toSet(readJson(KEYS.done, []));
-  const codes = unique(queue).filter(code => !doneSet[code]);
+  const codes = unique(queue).filter(code => monitorMode || !doneSet[code]);
 
   writeJson(KEYS.codes, codes);
 
@@ -135,7 +141,7 @@ async function runAutoJoin() {
     return;
   }
 
-  if (String(readConfig("MODE") || "").toLowerCase() === "monitor") {
+  if (monitorMode) {
     await monitorPublicLinks(codes.slice(0, maxPerRun), remove404);
     return;
   }
@@ -376,6 +382,36 @@ function importConfiguredCodes() {
   if (added.length) {
     log("imported invite code(s): " + added.join(","));
   }
+}
+
+function syncMonitorQueueFromConfig() {
+  const argumentItems = [
+    readArgument("App_ID"),
+    readArgument("APP_ID"),
+    readArgument("TF_CODES")
+  ];
+  const storeItems = [
+    readStore("App_ID"),
+    readStore("APP_ID"),
+    readStore("TF_CODES")
+  ];
+
+  let codes = collectCodes(argumentItems);
+  if (!codes.length) {
+    codes = collectCodes(storeItems);
+  }
+
+  const normalized = unique(codes);
+  writeJson(KEYS.codes, normalized);
+  log("monitor queue set from current config: " + normalized.join(","));
+}
+
+function collectCodes(rawItems) {
+  const codes = [];
+  rawItems.forEach(item => {
+    codes.push.apply(codes, extractInviteCodes(item || ""));
+  });
+  return unique(codes);
 }
 
 function mergeCodes(codes) {
