@@ -16,7 +16,8 @@
 
 ## 文件
 
-- `testflight-autojoin.plugin`: Loon 插件入口。
+- `testflight-autojoin.plugin`: 主插件，只负责定时加入，不包含 MITM。
+- `testflight-capture.plugin`: 临时抓令牌插件，包含 `testflight.apple.com` MITM，抓完就删除或禁用。
 - `scripts/testflight-autojoin.js`: 捕获会话和定时加入逻辑。
 
 ## 发布前要改
@@ -38,18 +39,33 @@ https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/script
 https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/testflight-autojoin.plugin
 ```
 
-3. 确认 Loon 已安装并信任 MITM 证书，插件里的 `hostname = testflight.apple.com` 已启用。
-4. 保持插件参数里的 `捕获账号令牌` 为开启，重启 TestFlight App，进入任意页面，看到“令牌获取成功”后即可。
-5. 在插件参数 `App_ID` 填公开邀请链接或邀请码，支持逗号、空格、换行：
+3. 主插件不包含 MITM，长期启用它不应影响 TestFlight 正常打开。
+4. 在主插件参数 `App_ID` 填公开邀请链接或邀请码，支持逗号、空格、换行：
 
 ```text
 https://testflight.apple.com/join/ABCDEFGH
 ABCDEFGH,IJKLMNO1
 ```
 
-6. 默认每 5 分钟检查一次。名额未满时会请求加入，成功后从队列移除并记录到 `tfaj.done`，避免重复加入。
+5. 默认每 2 分钟检查一次。名额未满时会请求加入，成功后从队列移除并记录到 `tfaj.done`，避免重复加入。
 
-如果打开 TestFlight 时出现 Apple Connection 相关错误，先确认插件已更新到使用 `DIRECT` 的版本。抓到“令牌获取成功”后，可以把插件参数里的 `捕获账号令牌` 关掉，自动加入任务仍会使用已保存的令牌运行。
+## 抓令牌
+
+自动加入需要 TestFlight 的账号令牌。这个令牌只能从 TestFlight App 的 HTTPS 请求里抓到，因此需要临时启用 MITM：
+
+```text
+https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/testflight-capture.plugin
+```
+
+流程：
+
+1. 临时启用 `TestFlight Token Capture`。
+2. 重启 Loon VPN。
+3. 杀掉 TestFlight 后重新打开，进入任意页面。
+4. 看到“令牌获取成功”后，立刻禁用或删除 `TestFlight Token Capture`。
+5. 保留主插件 `TestFlight Auto Join` 运行。
+
+如果启用 `TestFlight Token Capture` 后 TestFlight 直接报 Apple Connection 错误，说明当前设备/系统/网络下 TestFlight 不能被 Loon 解密。此时主插件不会影响 TestFlight，但无法在这台设备上自动抓令牌；可以复用旧可莉/fmz200 插件已经保存的 `fmz200_TF_header`，或在另一台能抓到令牌的环境导入该持久化数据。
 
 ## 参数
 
@@ -65,4 +81,4 @@ ABCDEFGH,IJKLMNO1
 
 - 只处理公开 TestFlight 邀请链接，不绕过 Apple、开发者或 TestFlight 的限制。
 - 不做高频扫描，默认 5 分钟一次，并且遇到 `401/403/429` 会停止本轮。
-- 会话过期后需要重新打开 TestFlight App，让 Loon 再抓一次请求头。
+- 会话过期后需要临时启用 `testflight-capture.plugin` 重新抓一次；抓完继续禁用。
