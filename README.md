@@ -75,6 +75,8 @@ https://raw.githubusercontent.com/WenJiazhi/loon-testflight-autojoin/main/testfl
 - `MAX_PER_RUN`: 每次 cron 最多检查多少个，默认 `8`，最大 `20`。
 - `REMOVE_404`: `0` 保留 404 链接，`1` 自动删除 404 链接。
 
+定时任务使用固定 Loon cron：`0 */2 * * * *`，也就是每 2 分钟执行一次。更新插件后如果仍不自动运行，重启一次 Loon VPN 或重新导入插件，让 Loon 重新注册 cron。
+
 ## 兼容旧脚本
 
 如果你之前用过旧脚本，`App_ID`、`APP_ID` 或可莉版本的 `fmz200_TF_header` 会被自动导入。成功加入后，新队列会移除对应 code；如果旧 key 里还有其他 code，会尽量同步写回。
